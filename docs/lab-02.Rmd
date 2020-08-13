@@ -1,0 +1,67 @@
+---
+title: "Geography 176A"
+author: "[Emily Wapman ](https://ewapman.github.io)"
+subtitle: 'Lab 02: COVID-19 Pandemic'
+output:
+  html_document:
+    theme: journal
+---
+
+```{r, include = FALSE}
+library(tidyverse)
+library(knitr)
+library(readxl)
+library(zoo)
+```
+
+# Load Covid Data
+```{r}
+url = 'https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv'
+
+covid = read_csv(url)
+
+```
+
+
+``` {r}
+#Calculate New Cases
+data = covid %>%
+  filter(state == "California") %>%
+  group_by(county) %>%
+  mutate(newCases = cases - lag(cases)) %>%
+  ungroup() %>%
+  filter(date == max(date))
+
+#Make Tables
+(most_new_cases = data %>%
+    slice_max(newCases, n = 5) %>%
+    select(county, newCases))
+
+(most_cumulative_cases = data %>%
+  slice_max(cases, n = 5) %>%
+  select(county, cases))
+
+#Refine Tables
+library(kableExtra)
+knitr::kable(most_new_cases,
+             caption = "California Counties: Most New Cases", 
+             col.names = c("County", "New Cases"), 
+             format.args = list(big.mark = ",")) %>%
+  kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
+  
+
+
+knitr::kable(most_cumulative_cases,
+             caption = "California Counties: Most Cumulative Cases",
+             col.names = c("County", "Cumulative Cases"),
+             format.args = list(big.mark = ",")) %>%
+  kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
+```
+```{r}
+# Population data 
+library(readxl)
+PopulationEstimates <- read_excel("data/PopulationEstimates.xls")
+View(PopulationEstimates)
+```
+
+
