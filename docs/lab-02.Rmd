@@ -22,7 +22,7 @@ pop = PopulationEstimates <- read_excel("../data/PopulationEstimates.xls",
 
 
 ```
-# Question 1
+# California Cases 
 ``` {r, echo = FALSE, message = FALSE, warning = FALSE}
 # Set up data by county/create a New Cases Row
 data = covid %>%
@@ -114,7 +114,7 @@ In California, most recent counts show:
 - Total New Cases: `r sum(today$newCases)` 
 - Safe Counties: `r nrow(safe)`
 
-# Question 2
+# Statewide Comparison
 
 ```{r, echo = FALSE, message = FALSE, warning = FALSE}
 
@@ -127,7 +127,8 @@ data2 = covid %>%
   group_by(state) %>% 
   mutate(newCases = cases - lag(cases),
          roll7 = zoo::rollmean(newCases, 7, fill = NA, align = 'right')) %>%
-  ungroup()
+  ungroup() %>%
+  filter(newCases > 0)
   
   ggplot(data = data2, aes(x = date)) +
   geom_col(aes(y = newCases), col = NA, fill = "red") +
