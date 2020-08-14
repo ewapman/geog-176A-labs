@@ -12,36 +12,45 @@ library(tidyverse)
 library(knitr)
 library(readxl)
 library(zoo)
-```
 
-# Load Covid Data
-```{r}
 url = 'https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv'
 
 covid = read_csv(url)
 
+pop = PopulationEstimates <- read_excel("../data/PopulationEstimates.xls", 
+    skip = 2)
+
+
 ```
-
-
-``` {r}
-#Calculate New Cases
+# Question 1
+``` {r, echo = FALSE, message = FALSE, warning = FALSE}
+# Set up data by county/create a New Cases Row
 data = covid %>%
   filter(state == "California") %>%
   group_by(county) %>%
   mutate(newCases = cases - lag(cases)) %>%
-  ungroup() %>%
-  filter(date == max(date))
+  ungroup()
 
-#Make Tables
-(most_new_cases = data %>%
+today = data %>% filter(date == max(date))
+```
+``` {r, include = FALSE}
+# Calculate total California Cases for end analysis 
+sum(today$cases)
+sum(today$newCases)
+```
+``` {r, echo = FALSE, message = FALSE, warning = FALSE}
+# Make Tables - Cumulative/New Cases
+most_new_cases = today %>% 
     slice_max(newCases, n = 5) %>%
-    select(county, newCases))
+    select(county, newCases)
 
-(most_cumulative_cases = data %>%
+most_cumulative_cases = data %>%
+  filter(date == max(date)) %>%
   slice_max(cases, n = 5) %>%
-  select(county, cases))
+  select(county, cases)
 
-#Refine Tables
+
+# Refine Tables - cumulative/new cases
 library(kableExtra)
 knitr::kable(most_new_cases,
              caption = "California Counties: Most New Cases", 
@@ -56,12 +65,100 @@ knitr::kable(most_cumulative_cases,
              col.names = c("County", "Cumulative Cases"),
              format.args = list(big.mark = ",")) %>%
   kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
+
+# Join population to covid data
+perCap = pop %>%
+  select(fips = "FIPStxt", state = "State", pop2019 = "POP_ESTIMATE_2019") %>%
+  right_join(data, by = "fips") %>%
+  mutate(cumulative_cases_percapita = (cases/pop2019), new_cases_percapita = (newCases/pop2019)) %>%
+  filter(date >= max(date) - 13)
+
+
+# Make Percapita Tables
+cum_per_cap = perCap %>%
+    filter(date == max(date)) %>%
+    slice_max(cases, n = 5) %>%
+    select(county, cumulative_cases_percapita)
+  
+new_per_cap = perCap %>%
+   filter(date == max(date)) %>%
+    slice_max(cases, n = 5) %>%
+    select(county, new_cases_percapita)
+  
+# Refine Tables - Per Capita 
+
+knitr::kable(cum_per_cap,
+             caption = "California Counties: Most Cummulative Cases Per Capita", 
+             col.names = c("County", "Cummulative Cases Per Capita"), 
+             format.args = list(big.mark = ",")) %>%
+  kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
+
+knitr::kable(new_per_cap,
+             caption = "California Counties: Most New Cases Per Capita",
+             col.names = c("County", "New Cases Per Capita"),
+             format.args = list(big.mark = ",")) %>%
+  kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
+
+# Calculate Safe counties 
+safe = perCap %>%
+  group_by(county, pop2019) %>%
+  summarise(total_newCases = sum(newCases, na.rm = TRUE)) %>% 
+  mutate(total_safecounties = total_newCases/(pop2019/100000)) %>% 
+  filter(total_safecounties < 100)
+
 ```
-```{r}
-# Population data 
-library(readxl)
-PopulationEstimates <- read_excel("data/PopulationEstimates.xls")
-View(PopulationEstimates)
+# Results:
+In California, most recent counts show:
+
+- Total Cases: `r sum(today$cases)` 
+- Total New Cases: `r sum(today$newCases)` 
+- Safe Counties: `r nrow(safe)`
+
+# Question 2
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+
+# Facet plot 1
+data2 = covid %>%
+  filter(state %in% c("New York","California", "Louisiana", "Florida")) %>%
+  group_by(state, date) %>%
+  summarize(cases = sum(cases)) %>% 
+  ungroup() %>% 
+  group_by(state) %>% 
+  mutate(newCases = cases - lag(cases),
+         roll7 = zoo::rollmean(newCases, 7, fill = NA, align = 'right')) %>%
+  ungroup()
+  
+  ggplot(data = data2, aes(x = date)) +
+  geom_col(aes(y = newCases), col = NA, fill = "red") +
+  geom_line(aes(y = roll7), col = "darkred", size = 1) +
+  ggthemes::theme_wsj() +
+  labs(title = paste("New Cases")) +
+  theme(plot.background = element_rect(fill = "white"),
+        panel.background = element_rect(fill = "white"),
+        plot.title = element_text(size = 14, face = 'bold')) +
+  facet_grid(~state, scales = "free_y")
+
+# Facet plot 2
+
+data3 = pop %>%
+  select(pop2019 = "POP_ESTIMATE_2019", areaname = "Area_Name") %>%
+  right_join(data2, by = c("areaname" = "state")) %>%
+  mutate(cases_per_capita = (newCases/pop2019), roll7 = zoo::rollmean(cases_per_capita, 7, fill = NA, align = 'right')) %>%
+  ungroup() %>%
+  filter(cases_per_capita > 0)
+
+  ggplot(data = data3, aes(x = date)) +
+  geom_col(aes(y = cases_per_capita), col = NA, fill = "lightblue") +
+  geom_line(aes(y = roll7), col = "blue", size = 1) +
+  ggthemes::theme_wsj() +
+  labs(title = paste("New Cases Per Capita")) +
+  theme(plot.background = element_rect(fill = "white"),
+        panel.background = element_rect(fill = "white"),
+        plot.title = element_text(size = 14, face = 'bold')) +
+  facet_grid(~areaname, scales = "free_y")
+
 ```
 
+These two graphs displaying the total new cases and the total new cases per capita in California, Florida, Louisiana, and New York show the importance of scale in data analysis. The first graph makes it seem as though California, Florida, and New York all reach relatively close maximums and that Louisiana has significantly fewer cases than the other states. After analyzing the per capita data in the second graph, however, these assumptions prove to be false. Louisiana's new cases per capita are comparable to those of Florida and New York and California has about half the number of new cases per capita as the other states. 
 
