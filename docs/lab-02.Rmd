@@ -107,7 +107,7 @@ safe = perCap %>%
   filter(total_safecounties < 100)
 
 ```
-# Results:
+### Results:
 In California, most recent counts show:
 
 - Total Cases: `r sum(today$cases)` 
