@@ -4,7 +4,7 @@ author: "[Emily Wapman ](https://ewapman.github.io)"
 subtitle: 'Lab 02: COVID-19 Pandemic'
 output:
   html_document:
-    theme: journal
+    theme: yeti
 ---
 
 ```{r, include = FALSE}
