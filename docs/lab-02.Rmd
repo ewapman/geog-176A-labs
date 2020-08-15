@@ -24,7 +24,7 @@ pop = PopulationEstimates <- read_excel("../data/PopulationEstimates.xls",
 ```
 # California Cases 
 ``` {r, message = FALSE, warning = FALSE}
-# Set up data by county/create a New Cases Row
+# Set up data by county/create a New Cases column
 data = covid %>%
   filter(state == "California") %>%
   group_by(county) %>%

@@ -417,7 +417,7 @@ summary {
 
 <div id="california-cases" class="section level1">
 <h1>California Cases</h1>
-<pre class="r"><code># Set up data by county/create a New Cases Row
+<pre class="r"><code># Set up data by county/create a New Cases column
 data = covid %&gt;%
   filter(state == &quot;California&quot;) %&gt;%
   group_by(county) %&gt;%
