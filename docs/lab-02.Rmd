@@ -23,7 +23,7 @@ pop = PopulationEstimates <- read_excel("../data/PopulationEstimates.xls",
 
 ```
 # California Cases 
-``` {r, echo = FALSE, message = FALSE, warning = FALSE}
+``` {r, message = FALSE, warning = FALSE}
 # Set up data by county/create a New Cases Row
 data = covid %>%
   filter(state == "California") %>%
@@ -33,12 +33,12 @@ data = covid %>%
 
 today = data %>% filter(date == max(date))
 ```
-``` {r, include = FALSE}
+``` {r}
 # Calculate total California Cases for end analysis 
 sum(today$cases)
 sum(today$newCases)
 ```
-``` {r, echo = FALSE, message = FALSE, warning = FALSE}
+``` {r, message = FALSE, warning = FALSE}
 # Make Tables - Cumulative/New Cases
 most_new_cases = today %>% 
     slice_max(newCases, n = 5) %>%
@@ -116,7 +116,7 @@ In California, most recent counts show:
 
 # Statewide Comparison
 
-```{r, echo = FALSE, message = FALSE, warning = FALSE}
+```{r, message = FALSE, warning = FALSE}
 
 # Facet plot 1
 data2 = covid %>%
