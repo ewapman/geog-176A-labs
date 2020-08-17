@@ -88,8 +88,8 @@ new_per_cap = perCap %>%
 # Refine Tables - Per Capita 
 
 knitr::kable(cum_per_cap,
-             caption = "California Counties: Most Cummulative Cases Per Capita", 
-             col.names = c("County", "Cummulative Cases Per Capita"), 
+             caption = "California Counties: Most Cumulative Cases Per Capita", 
+             col.names = c("County", "Cumulative Cases Per Capita"), 
              format.args = list(big.mark = ",")) %>%
   kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
 
