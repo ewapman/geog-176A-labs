@@ -415,8 +415,20 @@ summary {
 </div>
 
 
-<div id="california-cases" class="section level1">
-<h1>California Cases</h1>
+<pre class="r"><code># Read in Data
+library(tidyverse)
+library(knitr)
+library(readxl)
+library(zoo)
+
+url = &#39;https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv&#39;
+
+covid = read_csv(url)
+
+pop = PopulationEstimates &lt;- read_excel(&quot;../data/PopulationEstimates.xls&quot;, 
+    skip = 2)</code></pre>
+<div id="question-1" class="section level1">
+<h1>Question 1</h1>
 <pre class="r"><code># Set up data by county/create a New Cases column
 data = covid %&gt;%
   filter(state == &quot;California&quot;) %&gt;%
@@ -424,8 +436,9 @@ data = covid %&gt;%
   mutate(newCases = cases - lag(cases)) %&gt;%
   ungroup()
 
-today = data %&gt;% filter(date == max(date))</code></pre>
-<pre class="r"><code># Calculate total California Cases for end analysis 
+today = data %&gt;% filter(date == max(date))
+
+# Calculate total California Cases for end analysis 
 sum(today$cases)</code></pre>
 <pre><code>## [1] 628508</code></pre>
 <pre class="r"><code>sum(today$newCases)</code></pre>
@@ -567,7 +580,7 @@ San Diego
 </tr>
 </tbody>
 </table>
-<pre class="r"><code># Join population to covid data
+<pre class="r"><code># Join population to covid data/filter to include only last 14 days 
 perCap = pop %&gt;%
   select(fips = &quot;FIPStxt&quot;, state = &quot;State&quot;, pop2019 = &quot;POP_ESTIMATE_2019&quot;) %&gt;%
   right_join(data, by = &quot;fips&quot;) %&gt;%
@@ -712,7 +725,7 @@ San Diego
 </tr>
 </tbody>
 </table>
-<pre class="r"><code># Calculate Safe counties 
+<pre class="r"><code># Calculate number of new cases in last 14 days per 100000 people/number of safe counties 
 safe = perCap %&gt;%
   group_by(county, pop2019) %&gt;%
   summarise(total_newCases = sum(newCases, na.rm = TRUE)) %&gt;% 
@@ -720,16 +733,11 @@ safe = perCap %&gt;%
   filter(total_safecounties &lt; 100)</code></pre>
 <div id="results" class="section level3">
 <h3>Results:</h3>
-<p>In California, most recent counts show:</p>
-<ul>
-<li>Total Cases: 6.2850810^{5}</li>
-<li>Total New Cases: 6527</li>
-<li>Safe Counties: 12</li>
-</ul>
+<p>Most recent counts show that in California, there are 6.2850810^{5} total COVID-19 cases, 6527 new cases, and 12 safe counties, where safe counties are those with fewer than 100 new cases per 100,000 residents over the past 14 days.</p>
 </div>
 </div>
-<div id="statewide-comparison" class="section level1">
-<h1>Statewide Comparison</h1>
+<div id="question-2" class="section level1">
+<h1>Question 2</h1>
 <pre class="r"><code># Facet plot 1
 data2 = covid %&gt;%
   filter(state %in% c(&quot;New York&quot;,&quot;California&quot;, &quot;Louisiana&quot;, &quot;Florida&quot;)) %&gt;%

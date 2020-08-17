@@ -7,7 +7,8 @@ output:
     theme: yeti
 ---
 
-```{r, include = FALSE}
+```{r, message = FALSE, warning = FALSE}
+# Read in Data
 library(tidyverse)
 library(knitr)
 library(readxl)
@@ -22,7 +23,7 @@ pop = PopulationEstimates <- read_excel("../data/PopulationEstimates.xls",
 
 
 ```
-# California Cases 
+# Question 1
 ``` {r, message = FALSE, warning = FALSE}
 # Set up data by county/create a New Cases column
 data = covid %>%
@@ -32,8 +33,7 @@ data = covid %>%
   ungroup()
 
 today = data %>% filter(date == max(date))
-```
-``` {r}
+
 # Calculate total California Cases for end analysis 
 sum(today$cases)
 sum(today$newCases)
@@ -66,7 +66,7 @@ knitr::kable(most_cumulative_cases,
              format.args = list(big.mark = ",")) %>%
   kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
 
-# Join population to covid data
+# Join population to covid data/filter to include only last 14 days 
 perCap = pop %>%
   select(fips = "FIPStxt", state = "State", pop2019 = "POP_ESTIMATE_2019") %>%
   right_join(data, by = "fips") %>%
@@ -99,22 +99,19 @@ knitr::kable(new_per_cap,
              format.args = list(big.mark = ",")) %>%
   kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
 
-# Calculate Safe counties 
+# Calculate number of new cases in last 14 days per 100000 people/number of safe counties 
 safe = perCap %>%
   group_by(county, pop2019) %>%
   summarise(total_newCases = sum(newCases, na.rm = TRUE)) %>% 
   mutate(total_safecounties = total_newCases/(pop2019/100000)) %>% 
   filter(total_safecounties < 100)
 
+
 ```
 ### Results:
-In California, most recent counts show:
+Most recent counts show that in California, there are `r sum(today$cases)` total COVID-19 cases, `r sum(today$newCases)` new cases, and `r nrow(safe)` safe counties, where safe counties are those with fewer than 100 new cases per 100,000 residents over the past 14 days. 
 
-- Total Cases: `r sum(today$cases)` 
-- Total New Cases: `r sum(today$newCases)` 
-- Safe Counties: `r nrow(safe)`
-
-# Statewide Comparison
+# Question 2
 
 ```{r, message = FALSE, warning = FALSE}
 
