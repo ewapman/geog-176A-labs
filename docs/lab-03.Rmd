@@ -278,7 +278,7 @@ ggplot() +
     aes(label = city, geometry = geometry),
     stat = "sf_coordinates",
     size = 2) +
-  labs(title = "Cities in 100 Mile Zone & Most Populous Cities Per State",
+  labs(title = "Cities in 100 Mile Zone & Most Populous City Per State",
        x = " ",
        y = " ") + 
   theme_minimal() 
