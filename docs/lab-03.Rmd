@@ -31,7 +31,7 @@ library(knitr)
 # Question 1.1 -Define a Projection 
 eqdc = '+proj=eqdc +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs'
 ```
-This projection is named "eqdc", has a latitude of origin of 40 and a central meridian at -96. The latitude of the first standard parallel is at 20 and the latitude at the second standard parallel is 60. The false easting and false northing are both 0. The datum used is NAD83 and units are in meters. 
+This projection is named "eqdc" because it is an equal distance projection. It has a latitude of origin of 40 and a central meridian at -96. The latitude of the first standard parallel is at 20 and the latitude at the second standard parallel is 60. The false easting and false northing are both 0. The datum used is NAD83 and units are in meters. 
 ```{r, Warning = FALSE, message = FALSE}
 
 # Question 1.2 - Get USA state boundaries 
