@@ -31,7 +31,7 @@ The original US map had `r conuspts` points, and the simplified map now has `r s
 ```{r, warning = FALSE, message = FALSE}
 # Step 1.2 - Centroids 
 
-county_centroid = st_centroid(conus) %>%
+county_centroid = st_centroid(conus_simp) %>%
   st_combine() %>%
   st_cast("MULTIPOINT")
 
@@ -78,13 +78,13 @@ plot_tess = function(data, title)
 plot_tess(data = conus_simp, "Original County Data")
 
 # Voroni
-v_grid = st_intersection(v_grid, st_union(conus))
+v_grid = st_intersection(v_grid, st_union(conus_simp))
 plot_tess(v_grid, "Voronoi Coverage") +
   geom_sf(data = county_centroid, col = "darkred", size = 0.2)
 
 # Triangulated
 
-t_grid = st_intersection(t_grid, st_union(conus))
+t_grid = st_intersection(t_grid, st_union(conus_simp))
 plot_tess(t_grid, "Triangulated Coverage") +
   geom_sf(data = county_centroid, col = "darkred", size = 0.2)
 
