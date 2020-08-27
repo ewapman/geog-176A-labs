@@ -1,0 +1,101 @@
+---
+title: "Geography 176A"
+author: "[Emily Wapman](https://ewapman.github.io)"
+subtitle: 'Lab 04: Tesselations, Point-in-Polygon'
+output:
+  html_document:
+    theme: yeti
+---
+
+```{r, warning = FALSE, message = FALSE}
+# Install Libraries 
+library(tidyverse)
+library(sf)
+library(USAboundaries)
+library(rmapshaper)
+
+```
+
+```{r, warning = FALSE, message = FALSE}
+# Step 1.1 - Get CONUS & Simplify 
+conus = USAboundaries::us_counties() %>%
+  filter(!state_name %in% c("Puerto Rico", "Alaska", "Hawaii")) %>%
+  st_transform(5070)
+
+conus_simp = ms_simplify(conus, keep = 0.05)
+
+conuspts = mapview::npts(conus)
+simppts = mapview::npts(conus_simp)
+```
+The original US map had `r conuspts` points, and the simplified map now has `r simppts` points. This could create inaccuracies in some instances because simplification generalizes features by reducing the number of points and the level of detail. 
+```{r, warning = FALSE, message = FALSE}
+# Step 1.2 - Centroids 
+
+county_centroid = st_centroid(conus) %>%
+  st_combine() %>%
+  st_cast("MULTIPOINT")
+
+# Step 1.3 - 1.5: Make Tessalations 
+
+# Voroni Tessellation 
+v_grid = st_voronoi(county_centroid) %>%
+  st_cast() %>%
+  st_as_sf %>%
+  mutate(id = 1:n())
+
+
+# Triangulated Tessalation
+t_grid = st_triangulate(county_centroid) %>%
+  st_cast() %>%
+  st_as_sf() %>%
+  mutate(id = 1:n())
+
+
+# Gridded Coverage: n = 70
+sq_grid = st_make_grid(conus_simp, n = c(70, 50)) %>%
+  st_as_sf() %>%
+  st_cast() %>%
+  mutate(id = 1:n())
+
+
+# Hexagonal Coverage: n = 70
+hex_grid = st_make_grid(conus_simp, n = c(70, 50), square = FALSE) %>%
+  st_as_sf() %>%
+  st_cast() %>%
+  mutate(id = 1:n())
+
+
+# 1.6 - Plot
+
+plot_tess = function(data, title)
+  {ggplot() + 
+    geom_sf(data = data, fill = "white", col = "navy", size = .2) +   
+    theme_void() +
+    labs(title = title, caption = paste("This tesselation has:", nrow(data), "tiles" )) +
+    theme(plot.title = element_text(hjust = .5, color =  "black", face = "bold"))}
+
+# Original
+plot_tess(data = conus_simp, "Original County Data")
+
+# Voroni
+v_grid = st_intersection(v_grid, st_union(conus))
+plot_tess(v_grid, "Voronoi Coverage") +
+  geom_sf(data = county_centroid, col = "darkred", size = 0.2)
+
+# Triangulated
+
+t_grid = st_intersection(t_grid, st_union(conus))
+plot_tess(t_grid, "Triangulated Coverage") +
+  geom_sf(data = county_centroid, col = "darkred", size = 0.2)
+
+# Gridded
+
+plot_tess(sq_grid, "Square Coverage")
+
+# Hexagonal
+
+plot_tess(hex_grid, "Hexagonal Coverage")
+
+
+
+```
