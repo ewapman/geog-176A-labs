@@ -1,0 +1,21 @@
+---
+title: "Lab 04 R"
+subtitle: "nearest states"
+output:
+  html_document:
+    theme: united
+---
+
+```{r}
+library(sf)
+library(tidyverse)
+library(leaflet)
+
+source("../R/utils.R")
+
+
+```
+
+```{r}
+map_nearest_state("Colorado")
+```

@@ -1,7 +1,7 @@
 ---
 title: "Geography 176A"
 author: "[Emily Wapman](https://ewapman.github.io)"
-subtitle: 'Lab 04: Tesselations, Point-in-Polygon'
+subtitle: 'Lab 04: Tessellations, Point-in-Polygon'
 output:
   html_document:
     theme: yeti
@@ -13,9 +13,13 @@ library(tidyverse)
 library(sf)
 library(USAboundaries)
 library(rmapshaper)
+library(readxl)
+library(gghighlight)
+library(leaflet)
+library(leafpop)
 
 ```
-
+# Question 1
 ```{r, warning = FALSE, message = FALSE}
 # Step 1.1 - Get CONUS & Simplify 
 conus = USAboundaries::us_counties() %>%
@@ -26,8 +30,9 @@ conus_simp = ms_simplify(conus, keep = 0.05)
 
 conuspts = mapview::npts(conus)
 simppts = mapview::npts(conus_simp)
+diff = conuspts - simppts
 ```
-The original US map had `r conuspts` points, and the simplified map now has `r simppts` points. This could create inaccuracies in some instances because simplification generalizes features by reducing the number of points and the level of detail. 
+The original US map had `r conuspts` points, and the simplified map now has `r simppts` points. This removed `r diff` points, which could create inaccuracies in some instances because simplification generalizes features by reducing the number of points and the level of detail. 
 ```{r, warning = FALSE, message = FALSE}
 # Step 1.2 - Centroids 
 
@@ -52,16 +57,14 @@ t_grid = st_triangulate(county_centroid) %>%
 
 
 # Gridded Coverage: n = 70
-sq_grid = st_make_grid(conus_simp, n = c(70, 50)) %>%
+sq_grid = st_make_grid(conus_simp, n = 70) %>%
   st_as_sf() %>%
-  st_cast() %>%
   mutate(id = 1:n())
 
 
 # Hexagonal Coverage: n = 70
-hex_grid = st_make_grid(conus_simp, n = c(70, 50), square = FALSE) %>%
+hex_grid = st_make_grid(conus_simp, n = 70, square = FALSE) %>%
   st_as_sf() %>%
-  st_cast() %>%
   mutate(id = 1:n())
 
 
@@ -95,6 +98,190 @@ plot_tess(sq_grid, "Square Coverage")
 # Hexagonal
 
 plot_tess(hex_grid, "Hexagonal Coverage")
+
+
+```
+
+# Question 2 
+
+```{r, warning = FALSE, message = FALSE}
+# Question 2 - Still need to comment on features
+tess_summary = function(sf_object, character_string){
+  area = st_area(sf_object, na.rm = FALSE, weights = FALSE) %>%
+    units::set_units("km2") %>%
+    units::drop_units() 
+    data.frame(type = character_string,
+               features = nrow(sf_object),
+                 mean_area = mean(area),
+                 standard_deviation = sd(area),
+                 total_area = sum(area))
+    } 
+
+table_summary = bind_rows(
+  tess_summary(conus_simp, "Original"),
+  tess_summary(v_grid, "Voroni"),
+  tess_summary(t_grid, "Triangulation"),
+  tess_summary(sq_grid, "Gridded"),
+  tess_summary(hex_grid, "Hexagons"))
+
+knitr::kable(table_summary,
+             caption = "Tesselation Characteristics", 
+             col.names = c("Type", "Number of Features", "Mean Area", "Standard Deviation (km^2)","Total Area (km^2)"), 
+             format.args = list(big.mark = ",")) %>%
+  kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
+
+```
+The different types of tessellations can create bias in data representation because each tessellation  aggregates point-based measurements into zones of different shapes and areas. The number and size of these zones influences calculations, such as the mean and standard deviation, which influences visual data representation. The voroni tessellation maintains the number of features and the mean area of the tiles as well as the overall area coverage of the original graph, and has comparable, though slightly lower, levels of standard deviation. In the triangulated tessellation, the tiles have about half the mean area and standard deviation of the original graph, so the tiles are smaller on average and have less variation in size. It also covers slightly less total area. Both the gridded and hexagonal tessellations have a larger mean area than the original with the hexagons having a larger average area than the grid. Due to the tile regularity, there is no deviation from the mean and these tessellations both cover a larger area than the original data. One would choose which tessellation to use based on which of these features in a particular data set are important for analysis. One would choose a tessellation based on the desired number of zones, tile mean area, and deviation from the mean. For example, a grid tessellation with no standard deviation will show much less color variation across different zones than a voroni tessellation with a higher standard deviation. 
+
+# Question 3
+```{r, warning = FALSE, message = FALSE}
+# Question 3
+
+# Read in data
+
+NID2019_U <- read_excel("../data/NID2019_U.xlsx") 
+```
+
+```{r, warning = FALSE, message = FALSE}
+# 3.1 - Filter Data
+dams_sf = NID2019_U %>%
+  filter(!is.na(LONGITUDE), !is.na(LATITUDE)) %>%
+  st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = 4326) %>%
+  st_transform(5070)
+
+# 3.2 - PIP Function
+point_in_polygon = function(points, polygon, id){
+  st_join(polygon, points) %>%
+    st_drop_geometry() %>%
+    count(.data[[id]]) %>%
+    setNames(c(id, "n")) %>%
+    left_join(polygon, by = id) %>%
+    st_as_sf()
+  }
+# 3.3 - Apply PIP Function to Tessalations
+
+# Original Data
+orig_pip = point_in_polygon(dams_sf, conus_simp, "geoid") 
+
+# Voroni
+voroni_pip = point_in_polygon(dams_sf, v_grid, "id")
+
+# Triangulation
+tri_pip = point_in_polygon(dams_sf, t_grid, "id")
+
+# Grid
+grid_pip = point_in_polygon(dams_sf, sq_grid, "id")
+
+# Hexagon Grid
+hex_pip = point_in_polygon(dams_sf, hex_grid, "id")
+
+# Create Plot Function 
+
+plot_tess_pip = function(sf_tess_object, title)
+  {ggplot() + 
+    geom_sf(data = sf_tess_object, aes(fill = n), col = NA) +
+    scale_fill_viridis_c(name = " ") + 
+    theme_void() + 
+    theme(plot.title = element_text(face = "bold", color = "black", hjust = .5, size = 24)) +
+    labs(title = paste("Dam Locations:", title),
+         caption = paste0(sum(sf_tess_object$n), " Dam Locations Represented"))}
+# Plot
+plot_tess_pip(orig_pip, "Original")
+plot_tess_pip(voroni_pip, "Voroni")
+plot_tess_pip(tri_pip, "Triangulation")
+plot_tess_pip(grid_pip, "Square Grid")
+plot_tess_pip(hex_pip, "Hexagon Grid")
+ 
+
+```
+The MAUP problem refers to how the differences in mean area and standard deviation influence the scale and visualization of aggregated points. Similarly to what was represented in the table, the voroni tessellation is the most similar to the visualization seen in the original data because the mean area of the different zones and high standard deviation is very similar to the original data. The triangulation tessellation shows zones ranging in size, but not as drastically as the voroni or original maps and has a much smaller scale range due to this increase in uniformity. Both the grid and hexagonal tessellations show the greatest zone uniformity and the least standard deviation, which makes the graphs much less detailed than the original. I chose to use the voroni tessellation for the rest of this lab because when analyzing dam data, the counties and geographic areas they work in are important for analysis, and the voroni tessellation is the most accurate in maintaining similar zones to the original county data. 
+
+
+# Question 4 
+The following maps show the locations of dams used for flood control, water supply, fire protection, and fish and wildlife. I have chosen to evaluate dams with these specific purposes due to their relevance in relation to the current hurricanes and fires, the water quality crisis, and the importance of fish and wildlife data in relation to my major. 
+```{r, warning = FALSE, message = FALSE}
+
+# Flood Control Dams
+flood_control =  dams_sf %>%
+  filter(grepl("C", PURPOSES)) 
+
+flood_pip = point_in_polygon(flood_control, v_grid, "id")
+
+# Fire Protection Dams
+fire_control =  dams_sf %>%
+  filter(grepl("P", PURPOSES)) 
+
+fire_pip = point_in_polygon(fire_control, v_grid, "id")
+
+# Water Supply
+
+water_supply =  dams_sf %>%
+  filter(grepl("S", PURPOSES))
+
+water_pip = point_in_polygon(water_supply, v_grid, "id")
+
+# Fish and Wildlife
+
+fish_wildlife =  dams_sf %>%
+  filter(grepl("F", PURPOSES))
+
+fish_wildlife_pip = point_in_polygon(fish_wildlife, v_grid, "id")
+
+# Plots
+
+# Flood Control 
+plot_tess_pip(flood_pip, "Flood Control") +
+  gghighlight::gghighlight(n > mean(n) + 1) 
+
+# Fire Control
+plot_tess_pip(fire_pip, "Fire Control") +
+  gghighlight::gghighlight(n > mean(n) + 1) 
+
+# Water Supply
+plot_tess_pip(water_pip, "Water Supply") +
+  gghighlight::gghighlight(n > mean(n) + 1) 
+
+# Fish and Wildlife
+plot_tess_pip(fish_wildlife_pip, "Fish and Wildlife") +
+  gghighlight::gghighlight(n > mean(n) + 1) 
+
+```
+The geographic distribution of dams makes sense when considering the land features and needs of the region. The flood dams are largely concentrated along the Mississippi River. Fire dams are concentrated in the Montana region and in the center of the United States, which makes sense due to the heavily forested areas of the Rocky Mountains. However, it is surprising that there are so few in California. Water supply dams are concentrated in California, which makes sense due to frequent drought, and there are many concentrated along the Rocky Mountain region, likely collecting mountain runoff, and there are several along the Mississippi river system region. Fish and Wildlife dams are most concentrated in remote locations of the United States, such as the northern-most part of California, Maine, and the Rocky Mountains region. The use of the voroni tessellation makes it much easier to distinguish particular regions, because the tiles maintain a similar shape, area, and standard deviation to a regular map of United States counties. However, the voroni may influence data analysis by over or under emphasizing the number of dams in a particular area due to the large variation in tile size. 
+
+
+
+# Extra Credit
+```{r, warning = FALSE, message = FALSE}
+# Download Shape File (Rivers)/Filter to Mississippi System
+
+rivers = read_sf('../data/majorrivers_0_0/MajorRivers.shp')
+
+
+rivers = rivers %>%
+  filter(SYSTEM == "Mississippi")
+
+# Filter to the largest/high hazard dam in each state
+
+dams_sf_biggest = dams_sf %>%
+  filter(HAZARD == "H", grepl("C", PURPOSES)) %>%
+  group_by(STATE) %>%
+  slice_max(NID_STORAGE) %>%
+  select("DAM_NAME", "NID_STORAGE", "PURPOSES", "YEAR_COMPLETED")
+
+
+# Make Leaflet
+
+leaflet() %>%
+  addProviderTiles(providers$CartoDB) %>%
+  addPolylines(data = rivers) %>%
+  addCircleMarkers(data = st_transform(dams_sf_biggest, 4326), fillOpacity = 1, radius = ~NID_STORAGE/1500000, color = "red", stroke = FALSE, popup = leafpop::popupTable(st_drop_geometry(dams_sf_biggest), feature.id = FALSE, row.numbers = FALSE))
+  
+ 
+  
+
+
+
+
 
 
 
