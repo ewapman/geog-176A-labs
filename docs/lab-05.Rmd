@@ -1,0 +1,242 @@
+---
+title: "Geography 176A"
+author: "[Emily Wapman](https://ewapman.github.io)"
+subtitle: 'Lab 05: Rasters & Remote Sensing'
+output:
+  html_document:
+    theme: yeti
+---
+
+```{r, warning = FALSE, message = FALSE}
+# Install Libraries
+library(tidyverse)
+library(sf)
+library(raster)
+library(getlandsat)
+library(mapview)
+library(osmdata)
+```
+
+# Question 1
+```{r warning = FALSE, message = FALSE}
+# Question 1 - Define the Area of Interest
+bb = read_csv("../data/uscities.csv") %>%
+  filter(city == "Palo") %>%
+  st_as_sf(coords = c("lng", "lat"), crs = 4326) %>%
+  st_transform(5070) %>%
+  st_buffer(5000) %>%
+  st_bbox() %>%
+  st_as_sfc() %>%
+  st_as_sf()
+```
+
+# Question 2
+```{r, warning = FALSE, message = FALSE}
+
+# Get Landsat data and crop to AOI
+bbwgs = bb %>% st_transform(4326)
+bb = st_bbox(bbwgs)
+meta = read_csv("../data/palo-flood.csv")
+
+files = lsat_scene_files(meta$download_url) %>% 
+  filter(grepl(paste0("B", 1:6, ".TIF$", collapse = "|"), file)) %>% 
+  arrange(file) %>% 
+  pull(file)
+
+st = sapply(files, lsat_image)
+
+s = stack(st) %>% setNames(c(paste0("band", 1:6)))
+
+cropper = bbwgs %>% st_transform(crs(s))
+
+r = crop(s, cropper)
+
+```
+The dimensions of the stacked image is 7811 by 7681, the crs is WGS84, and the resolution is 30 by 30. Units are in meters. 
+
+The dimensions of the cropped image is 340 by 346, the crs is WGS84, and the resolution is still 30 by 30. Units are in meters. 
+
+# Question 3 
+```{r, warning = FALSE, message = FALSE}
+# Rename bands 
+coastal = r$band1
+blue = r$band2
+green = r$band3
+red = r$band4
+NIR = r$band5
+SWIR1 = r$band6
+
+# Plot Raster - Step 1
+par(mfrow = c(1,2))
+# R-G-B Natural Color
+plotRGB(r, r = 4, g = 3, b = 2)
+# NIR-R-G
+plotRGB(r, r = 5, g = 4, b = 3)
+
+par(mfrow = c(1,2))
+# NIR-SWIR1-R
+plotRGB(r, r = 5, g = 6, b = 4)
+# Choice - False color for agriculture 
+plotRGB(r, r = 6, g = 5, b = 2)
+
+# Plot with lin/hist stretch 
+par(mfrow = c(1,2))
+# R-G-B Natural Color
+plotRGB(r, r = 4, g = 3, b = 2, stretch = "hist")
+# NIR-R-G
+plotRGB(r, r = 5, g = 4, b = 3, stretch = "lin")
+
+par(mfrow = c(1,2))
+# NIR-SWIR1-R
+plotRGB(r, r = 5, g = 6, b = 4, stretch = "lin")
+# Choice - False color for agriculture 
+plotRGB(r, r = 6, g = 5, b = 2, stretch = "hist")
+
+```
+
+The stretch function increases the range of pixel brightness values, which increases the color range and contrast of the image. 
+
+# Question 4
+```{r, warning = FALSE, message = FALSE}
+
+# Make New Raster Layers 
+ndvi = (NIR - red) / (NIR + red)
+
+ndwi = (green - NIR) / (green + NIR)
+
+mndwi = (green - SWIR1) / (green + SWIR1)
+
+wri = (green + red) / (NIR + SWIR1)
+
+swi = 1 / sqrt(blue - SWIR1)
+
+# Combine raster layers into stack 
+stack = raster::stack(ndvi, ndwi, mndwi, wri, swi) %>%
+  setNames(c("NDVI: Cells less than 0", "NDWI: Cells greater than 0", "MNDWI: Cells greater than 0", "WRI: Cells greater than 1", "SWI: Cells less than 5"))
+
+# Plot
+palette = colorRampPalette(c("blue", "white", "red"))
+plot(stack, col = palette(256))
+```
+
+These images show different ways of representing the flood data. The maps are similar in that they all visually separate the surface water data from other land forms, but differ in how the surface water and surrounding area appear visually. The NDVI threshold makes it easy to visualize photosynthetic activity, and so brings out vegetation and agricultural land. NDWI, MNDWI, WRI, and SWI all enhance surface water data, but use different threshold formulas. NDWI uses the green and NIR bands in its formula, and so agricultural areas in the land still appear different from other land. MNDWI, WRI, and SWI, however, all use the SWIR1 band in their formulas which creates a more defined separation between all dry land and water.
+
+```{r, warning = FALSE, message = FALSE}
+
+# Raster Thresholding 
+threshold1 = function(x){ifelse(x <= 0, 1, NA)}
+threshold2 = function(x){ifelse(x >= 0, 1, NA)}
+threshold3 = function(x){ifelse(x >= 1, 1, NA)}
+threshold4 = function(x){ifelse(x <= 5, 1, NA)}
+
+flood1 = calc(ndvi,threshold1)
+flood2 = calc(ndwi, threshold2)
+flood3 = calc(mndwi, threshold2)
+flood4 = calc(wri, threshold3)
+flood5 = calc(swi, threshold4)
+
+# Stack threshold layers
+flood_stack = stack(flood1, flood2, flood3, flood4, flood5) %>%
+setNames(c("NDVI: Cells less than zero", "NDWI: Cells greater than zero", "MNDWI: Cells greater than zero", "WRI: Cells greater than 1", "SWI: Cells less than 5"))
+plot(flood_stack, col = "blue")
+
+
+```
+
+# Question 5
+```{r, warning = FALSE, message = FALSE}
+# Step 1 - Set Seed
+set.seed(09042020)
+
+# Step 2 - Extract values/kmeans 
+dim(r)
+v = getValues(r)
+dim(v)
+idx = which(!is.na(v))
+v = na.omit(v)
+```
+In r, the original raster, 117640 is the number of cells in the area of interest. 
+In v, the new matrix, 117640 is the number of rows.
+
+This means that in the new matrix, each row contains the data for one cell in the area of interest. 
+```{r, warning = FALSE, message = FALSE}
+
+# Create kmeans and make new raster object: get old raster structure, set values to NA
+kmeans = kmeans(v, centers = 12, iter.max = 100)
+new_raster = coastal
+values(new_raster) = NA
+new_raster[idx] = kmeans$cluster
+plot(new_raster)
+
+# Step 3 - Identify categories 
+
+# Create a table comparing the ndvi flood raster to the kmeans raster to find flood cells 
+table = table(values(flood1), values(new_raster))
+
+
+# Replace new raster values with the coinciding points from the table (raster[] used to change vector values) - make all values that are not the max table value zero
+new_raster[new_raster != which.max(table)] = 0
+new_raster[new_raster != 0] = 1
+new_raster = new_raster %>%
+  setNames(c("Kmeans Algorithm"))
+# Add this layer to flood raster stack 
+new_flood_raster = raster::addLayer(flood_stack, new_raster)
+  
+plot(new_flood_raster)
+
+```
+
+# Question 6
+```{r, message = FALSE, warning = FALSE}
+flood_summary = function(band_name, character_string){
+  cells = as.numeric(cellStats(band_name, stat = sum))
+    data.frame(type = character_string,
+               number_cells = cells,
+               area = cells * 900)
+} 
+
+table_flood_summary = bind_rows(
+flood_summary(flood1, "NDVI"),
+flood_summary(flood2, "NDWI"),
+flood_summary(flood3, "MNDWI"),
+flood_summary(flood4, "WRI"),
+flood_summary(flood5, "SWI"),
+flood_summary(new_raster, "Kmeans"))
+
+
+
+# Print as Kable Table
+knitr::kable(table_flood_summary,
+             caption = "Flood Cell Counts and Areas", 
+             col.names = c("Threshold Type", "Number of Cells", "Area (m^2)"),
+             format.args = list(big.mark = ",")) %>%
+  kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
+
+
+# Sum stack/make new layer
+new_flood_raster_sum = calc(new_flood_raster, fun = sum) 
+plot(new_flood_raster_sum, col = blues9)
+
+# Make new layer, set 0's to NA
+new_flood_raster_sum[new_flood_raster_sum == 0] = NA
+mapview(new_flood_raster_sum)
+
+```
+This map uses the kmeans, which groups together raster cells with similar properties, to visualize uncertainty in the different threshold techniques. The higher the count in a pixel, the more likely that cell was truly flooded. The reason some cells do not appear as whole numbers is because leaflets can only use geographic coordinates, so the raster data is reprojected. 
+
+# Extra Credit 
+
+```{r, warning = FALSE, message = FALSE}
+
+point_sfg = st_point(c(-91.78936, 42.06302))
+point_sfc = st_sfc(point_sfg, crs = 4326) %>%
+  st_transform(crs(new_flood_raster)) %>% 
+  st_sf()
+  
+flood_values = raster::extract(new_flood_raster, point_sfc)
+
+
+(flooding = data.frame(flood_values))
+
+```
+Three of the maps captured flooding at this location. Three of the extracted flood values are one and, based on the defined binary thresholds, this means that flooding was found at this location. For the other three maps, this location appears as NA, meaning it was not recognized as a flooded location. 
