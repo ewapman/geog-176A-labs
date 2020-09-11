@@ -136,30 +136,22 @@ plot(hill_r, axes = FALSE, box = FALSE, col = gray.colors(256, alpha = 0.5), leg
 plot(HAND_offset, add = TRUE, col = rev(blues9))
 plot(railway, add = TRUE, col = "green", cex = 1, pch = 16)
 ```
+
 Yes, the map looks accurate.
 
 ```{r, warning = FALSE, message = FALSE}
 
 # Estimate the Impacts
-
 # Extract building flood depth
-building_flood = raster::extract(HAND_offset, buildings, df = TRUE) 
+cols2 = ifelse(!is.na(raster::extract(HAND_offset, buildings)), "red", "black")
 
-impacted_plot = buildings %>%
-  mutate(flood_depth = building_flood, is.na = FALSE) %>%
-  select(osm_id, name, amenity, flood_depth)
-
-not_impacted = buildings %>%
-  mutate(flood_depth = building_flood, is.na = TRUE) %>%
-  select(osm_id, name, amenity, flood_depth)
-
-sum = nrow(impacted_plot)
 stage = 10.02
+
 # Plot impacts
-plot(hill_r, axes = FALSE, box = FALSE, col = gray.colors(256, alpha = 0.5), legend = FALSE, main = paste(sum, "Impacted Structures,", stage, "Foot Stage"), cex = 0.5)
+
+plot(hill_r, axes = FALSE, box = FALSE, col = gray.colors(256, alpha = 0.5), legend = FALSE, main = paste(sum(cols2 =="red"), "Impacted Structures,", stage, "Foot Stage"), cex = 0.5)
 plot(HAND_offset, add = TRUE, col = rev(blues9))
-plot(impacted_plot, add = TRUE, col = "red", pch = 16, cex = 0.08)
-plot(not_impacted, add = TRUE, col = "black", pch = 16, cex = 0.08)
+plot(buildings$geometry, add = TRUE, col = cols2, cex =  .08, pch = 16)
 plot(railway, add = TRUE, col = "green", cex = 1, pch = 16)
 ```
 
@@ -211,7 +203,15 @@ The image captures impacted buildings when the stage is 0 because these building
 
 
 
+building_flood = raster::extract(HAND_offset, buildings, df = TRUE) 
 
+impacted_plot = buildings %>%
+  mutate(flood_depth = building_flood, is.na = FALSE) %>%
+  select(osm_id, name, amenity, flood_depth)
+
+not_impacted = buildings %>%
+  mutate(flood_depth = building_flood, is.na = TRUE) %>%
+  select(osm_id, name, amenity, flood_depth)
 
 
 
