@@ -203,16 +203,6 @@ The image captures impacted buildings when the stage is 0 because these building
 
 
 
-building_flood = raster::extract(HAND_offset, buildings, df = TRUE) 
-
-impacted_plot = buildings %>%
-  mutate(flood_depth = building_flood, is.na = FALSE) %>%
-  select(osm_id, name, amenity, flood_depth)
-
-not_impacted = buildings %>%
-  mutate(flood_depth = building_flood, is.na = TRUE) %>%
-  select(osm_id, name, amenity, flood_depth)
-
 
 
 
