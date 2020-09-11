@@ -1,0 +1,219 @@
+---
+title: "Geography 176A"
+author: "[Emily Wapman](https://ewapman.github.io)"
+subtitle: 'Lab 06: Flood Risk in Mission Creek: Past, Present, Future'
+output:
+  html_document:
+    theme: yeti
+---
+
+```{r, warning = FALSE, message = FALSE}
+library(sf)        # vector manipulation
+library(raster)    # raster manipulation
+library(fasterize) # "faster" raster
+library(whitebox)  # terrain analysis
+library(dplyr)
+library(tidyverse)
+library(gifski)
+library(knitr)
+
+# Data libraries
+library(osmdata)   # OSM API
+library(elevatr)   # Elevation  Web Tiles
+```
+
+# Question 1: Collecting Data
+```{r, warning = FALSE, message = FALSE}
+# Basin Boundary
+basin  = read_sf("https://labs.waterdata.usgs.gov/api/nldi/linked-data/nwissite/USGS-11119750/basin/")
+write_sf(basin, dsn = "../data/USGS-11119750.gpkg")
+
+# Elevation Data (mask to basin)
+elev  = elevatr::get_elev_raster(basin, z = 13, units = "feet") %>% 
+  crop(basin) %>%
+  mask(basin)
+  
+writeRaster(elev, "../data/basin-elev.tif", overwrite = TRUE)
+elev_raster = raster("../data/basin-elev.tif")
+
+# Buildings and River Network Data
+# Buildings
+
+bb_basin = st_bbox(basin) %>%
+  st_as_sfc() %>%
+  st_transform(4326)
+
+osm = osmdata::opq(bb_basin) %>% 
+  add_osm_feature(key = 'building') %>% 
+  osmdata_sf()
+
+buildings = osm$osm_polygons %>%
+  st_transform(crs(basin)) %>%
+  st_intersection((basin)) %>%
+  st_centroid()
+
+# Railway
+railway = buildings %>% 
+  dplyr::filter(amenity == "railway")
+
+# Stream
+osm3 = osmdata::opq(bb_basin) %>% 
+  add_osm_feature(key = 'waterway', value = "stream") %>%
+  osmdata_sf() 
+    
+stream = osm3$osm_lines
+
+stream = stream %>%
+  st_transform(crs(basin)) %>%
+  st_intersection(basin)
+
+```
+
+# Question 2: Terrain Analysis
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+
+# Hillshade
+
+# Create hillshade raster
+wbt_hillshade("../data/basin-elev.tif", "../data/basin-hillshade.tif")
+
+
+```
+
+```{r, warning = FALSE, message = FALSE}
+
+# Plot Hillshade
+hill_r = raster("../data/basin-hillshade.tif")
+plot(hill_r, axes = FALSE, box = FALSE, col = gray.colors(256, alpha = 0.5), main = "Hillshade", legend = FALSE)
+plot(stream, add = TRUE, col = "blue")
+
+
+# Height Above Nearest Drainage 
+
+# Create River Raster
+stream_raster = stream %>%
+  st_transform(5070) %>%
+  st_buffer(10) %>%
+  st_transform(crs(elev_raster))
+
+stream_raster = fasterize::fasterize(stream_raster, elev_raster)
+
+writeRaster(stream_raster, "../data/stream_elev.tif", overwrite = TRUE)
+stream_raster = raster("../data/stream_elev.tif")
+```
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+# Create hydrologically corrected surface
+wbt_breach_depressions("../data/basin-elev.tif", "../data/corrected-surface.tif")
+
+# Create HAND raster
+wbt_elevation_above_stream("../data/corrected-surface.tif", "../data/stream_elev.tif", "../data/HAND.tif" )
+```
+
+```{r, message = FALSE, warning = FALSE}
+# Correcting to local reference datum
+HAND = raster("../data/HAND.tif" ) 
+HAND = HAND + 3.69
+stream_raster = raster("../data/stream_elev.tif")
+
+# Replacement
+HAND[stream_raster == 1] = 0
+
+# Save raster
+writeRaster(HAND, "../data/HAND_offset.tif", overwrite = TRUE)
+```
+
+# Question 3: 2017 Impact Assessment 
+```{r, warning = FALSE, message = FALSE}
+
+# Read in HAND raster
+HAND_offset = raster("../data/HAND_offset.tif")
+
+# Set values to NA
+HAND_offset[HAND_offset > 10.02] = NA
+
+plot(hill_r, axes = FALSE, box = FALSE, col = gray.colors(256, alpha = 0.5), legend = FALSE)
+plot(HAND_offset, add = TRUE, col = rev(blues9))
+plot(railway, add = TRUE, col = "green", cex = 1, pch = 16)
+```
+Yes, the map looks accurate.
+
+```{r, warning = FALSE, message = FALSE}
+
+# Estimate the Impacts
+
+# Extract building flood depth
+building_flood = raster::extract(HAND_offset, buildings, df = TRUE) 
+
+impacted_plot = buildings %>%
+  mutate(flood_depth = building_flood, is.na = FALSE) %>%
+  select(osm_id, name, amenity, flood_depth)
+
+not_impacted = buildings %>%
+  mutate(flood_depth = building_flood, is.na = TRUE) %>%
+  select(osm_id, name, amenity, flood_depth)
+
+sum = nrow(impacted_plot)
+stage = 10.02
+# Plot impacts
+plot(hill_r, axes = FALSE, box = FALSE, col = gray.colors(256, alpha = 0.5), legend = FALSE, main = paste(sum, "Impacted Structures,", stage, "Foot Stage"), cex = 0.5)
+plot(HAND_offset, add = TRUE, col = rev(blues9))
+plot(impacted_plot, add = TRUE, col = "red", pch = 16, cex = 0.08)
+plot(not_impacted, add = TRUE, col = "black", pch = 16, cex = 0.08)
+plot(railway, add = TRUE, col = "green", cex = 1, pch = 16)
+```
+
+# Extra Credit: Flood Inundation Map Library 
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
+sb = AOI::aoi_get("Santa Barbara")
+
+HAND_offset_sb = HAND_offset %>%
+  crop(sb)
+
+hill_r_sb = hill_r %>%
+  crop(sb)
+
+gifski::save_gif({
+  for(i in 0:20) {
+    
+    tmp = HAND_offset_sb
+    tmp[tmp > i] = NA
+    cols = ifelse(!is.na(raster::extract(tmp, buildings)), "red", "black")
+
+    
+    plot(hill_r, axes = FALSE, box = FALSE, col = gray.colors(256, alpha = 0.5), legend = FALSE, main = paste(sum(cols =="red"), "Impacted Structures,", i, "Foot Stage"), cex = 0.5)
+plot(tmp, add = TRUE, col = rev(blues9), legend = FALSE)
+plot(impacted_plot, add = TRUE, col = "red", pch = 16, cex = 0.08)
+plot(not_impacted, add = TRUE, col = "black", pch = 16, cex = 0.08)
+plot(railway, add = TRUE, col = "green", cex = 1, pch = 16)
+plot(buildings$geometry, col = cols, add = TRUE, cex =  .2, pch = 16)
+    
+  }
+}, gif_file = "../data/mission-creek-fim.gif",
+   width = 600, height = 600, 
+   delay = .7, loop = TRUE)
+
+
+```
+
+
+
+```{r, warning = FALSE, message = FALSE}
+knitr::include_graphics(path = "../data/mission-creek-fim.gif")
+```
+
+
+The image captures impacted buildings when the stage is 0 because these buildings sit right along the stream and so are at the same elevation level as the water in the channel at stage 0 and so are considered to be impacted buildings. 
+
+
+
+
+
+
+
+
+
+
+
+
+
