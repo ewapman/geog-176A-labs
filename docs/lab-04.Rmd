@@ -6,6 +6,9 @@ output:
   html_document:
     theme: yeti
 ---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, out.width = "75%", fig.align = 'center')
+```
 
 ```{r, warning = FALSE, message = FALSE}
 # Install Libraries 
@@ -32,6 +35,7 @@ conuspts = mapview::npts(conus)
 simppts = mapview::npts(conus_simp)
 diff = conuspts - simppts
 ```
+
 The original US map had `r conuspts` points, and the simplified map now has `r simppts` points. This removed `r diff` points, which could create inaccuracies in some instances because simplification generalizes features by reducing the number of points and the level of detail. 
 ```{r, warning = FALSE, message = FALSE}
 # Step 1.2 - Centroids 
@@ -131,6 +135,7 @@ knitr::kable(table_summary,
   kableExtra::kable_styling("striped", full_width = TRUE, font_size = 14)
 
 ```
+
 The different types of tessellations can create bias in data representation because each tessellation  aggregates point-based measurements into zones of different shapes and areas. The number and size of these zones influences calculations, such as the mean and standard deviation, which influences visual data representation. The voroni tessellation maintains the number of features and the mean area of the tiles as well as the overall area coverage of the original graph, and has comparable, though slightly lower, levels of standard deviation. In the triangulated tessellation, the tiles have about half the mean area and standard deviation of the original graph, so the tiles are smaller on average and have less variation in size. It also covers slightly less total area. Both the gridded and hexagonal tessellations have a larger mean area than the original with the hexagons having a larger average area than the grid. Due to the tile regularity, there is no deviation from the mean and these tessellations both cover a larger area than the original data. One would choose which tessellation to use based on which of these features in a particular data set are important for analysis. One would choose a tessellation based on the desired number of zones, tile mean area, and deviation from the mean. For example, a grid tessellation with no standard deviation will show much less color variation across different zones than a voroni tessellation with a higher standard deviation. 
 
 # Question 3
@@ -194,10 +199,12 @@ plot_tess_pip(hex_pip, "Hexagon Grid")
  
 
 ```
+
 The MAUP problem refers to how the differences in mean area and standard deviation influence the scale and visualization of aggregated points. Similarly to what was represented in the table, the voroni tessellation is the most similar to the visualization seen in the original data because the mean area of the different zones and high standard deviation is very similar to the original data. The triangulation tessellation shows zones ranging in size, but not as drastically as the voroni or original maps and has a much smaller scale range due to this increase in uniformity. Both the grid and hexagonal tessellations show the greatest zone uniformity and the least standard deviation, which makes the graphs much less detailed than the original. I chose to use the voroni tessellation for the rest of this lab because when analyzing dam data, the counties and geographic areas they work in are important for analysis, and the voroni tessellation is the most accurate in maintaining similar zones to the original county data. 
 
 
 # Question 4 
+
 The following maps show the locations of dams used for flood control, water supply, fire protection, and fish and wildlife. I have chosen to evaluate dams with these specific purposes due to their relevance in relation to the current hurricanes and fires, the water quality crisis, and the importance of fish and wildlife data in relation to my major. 
 ```{r, warning = FALSE, message = FALSE}
 
@@ -246,6 +253,7 @@ plot_tess_pip(fish_wildlife_pip, "Fish and Wildlife") +
   gghighlight::gghighlight(n > mean(n) + 1) 
 
 ```
+
 The geographic distribution of dams makes sense when considering the land features and needs of the region. The flood dams are largely concentrated along the Mississippi River. Fire dams are concentrated in the Montana region and in the center of the United States, which makes sense due to the heavily forested areas of the Rocky Mountains. However, it is surprising that there are so few in California. Water supply dams are concentrated in California, which makes sense due to frequent drought, and there are many concentrated along the Rocky Mountain region, likely collecting mountain runoff, and there are several along the Mississippi river system region. Fish and Wildlife dams are most concentrated in remote locations of the United States, such as the northern-most part of California, Maine, and the Rocky Mountains region. The use of the voroni tessellation makes it much easier to distinguish particular regions, because the tiles maintain a similar shape, area, and standard deviation to a regular map of United States counties. However, the voroni may influence data analysis by over or under emphasizing the number of dams in a particular area due to the large variation in tile size. 
 
 
