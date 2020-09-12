@@ -7,6 +7,10 @@ output:
     theme: yeti
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, out.width = "75%", fig.align = 'center')
+```
+
 ```{r, message = FALSE, warning = FALSE}
 # Read in Data
 library(tidyverse)
@@ -33,7 +37,8 @@ data = covid %>%
   ungroup()
 
 today = data %>% filter(date == max(date))
-
+```
+```{r, message = FALSE, warning = FALSE, eval = FALSE}
 # Calculate total California Cases for end analysis 
 sum(today$cases)
 sum(today$newCases)
