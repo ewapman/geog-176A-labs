@@ -7,6 +7,10 @@ output:
     theme: yeti
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, out.width = "75%", fig.align = 'center')
+```
+
 ```{r, warning = FALSE, message = FALSE}
 # Install Libraries
 library(tidyverse)
